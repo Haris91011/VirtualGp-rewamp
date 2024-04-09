@@ -1,7 +1,16 @@
 import streamlit as st
 import requests
+from streamlit_chat import message
 
-# Assuming your FastAPI server is running locally on port 8006
+if 'chat_history' not in st.session_state:
+    st.session_state['chat_history'] = []  # This will store tuples of (query, response)
+
+if 'instagram' not in st.session_state:
+    st.session_state['instagram'] = []
+
+if 'user_query' not in st.session_state:
+    st.session_state['user_query'] = ""  # Holds the current value of the query text area
+
 API_BASE_URL = "https://gppod-devbe.xeventechnologies.com"
 
 def generate_user_id():
@@ -14,7 +23,6 @@ def generate_user_id():
         return None
 
 def qna_conversation(user_id, id, user_query):
-    # Constructing the JSON body according to the Pydantic model
     json_body = {
         "user_id": user_id,
         "id": id,
@@ -30,23 +38,35 @@ def qna_conversation(user_id, id, user_query):
         st.error("Conversation failed")
         return "Error in conversation"
 
-
-st.title("Medical Q&A Bot")
+st.title("Medical Assistant")
+st.write("Please generate UserId first")
 
 # Generate User ID Section
 if st.button("Generate New User ID"):
     user_id = generate_user_id()
     if user_id:
+        st.session_state['instagram'] = user_id
         st.success(f"Generated User ID: {user_id}")
 
-# Conversation Section
-user_id = st.text_input("Enter User ID")
-question_id = st.selectbox("Select Physician ID", [0, 1], format_func=lambda x: "Dr. William" if x == 0 else "Dr. Elizabeth")
-user_query = st.text_area("Your Query")
+if st.session_state['instagram']:
+    # Conversation Section
+    user_id_input = st.text_input("Enter User ID", value=st.session_state['instagram'])
+    question_id = st.selectbox("Select Physician ID", [0, 1], format_func=lambda x: "Dr. William" if x == 0 else "Dr. Elizabeth")
+    st.session_state['user_query'] = st.text_area("Your Query", value=st.session_state['user_query'])
 
-if st.button("Submit Query"):
-    if user_id and user_query:
-        response = qna_conversation(user_id, question_id, user_query)
-        st.text_area("Response", value=response, height=300)
-    else:
-        st.error("Please provide both User ID and a query.")
+    submit_col, clear_col = st.columns([3, 1])  # Adjust the column ratio as needed
+    if submit_col.button("Submit Query"):
+        if user_id_input and st.session_state['user_query']:
+            response = qna_conversation(user_id_input, question_id, st.session_state['user_query'])
+            # Append the new query and response pair to the chat history
+            st.session_state['chat_history'].append((st.session_state['user_query'], response))
+            st.session_state['user_query'] = ""  # Clear the query text area after submitting
+
+    if clear_col.button("Clear Text"):
+        # Clear the text area by resetting its state value
+        st.session_state['user_query'] = ""
+
+# Display the chat history
+for query, response in st.session_state['chat_history']:
+    message(query, is_user=True)
+    message(response, is_user=False)
